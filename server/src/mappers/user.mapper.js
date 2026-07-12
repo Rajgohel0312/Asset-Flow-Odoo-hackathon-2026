@@ -9,6 +9,7 @@ export const toUserDTO = (user) => {
     profileImage: user.profileImage || null,
     status: user.status,
     role: user.role ? { id: user.role.id, name: user.role.name } : null,
+    department: user.department ? { id: user.department.id, name: user.department.name } : null,
     createdAt: user.createdAt,
   };
 };

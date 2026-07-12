@@ -1,4 +1,4 @@
-import prisma from "../../config/db.js";
+import prisma from '../../config/db.js';
 
 export const findByEmail = async (email) => {
   return await prisma.user.findFirst({
@@ -36,11 +36,9 @@ export const create = async (userData) => {
   });
 };
 
-
 export const updatePassword = async (id, hashedPassword) => {
   return await prisma.user.update({
     where: { id },
     data: { password: hashedPassword },
   });
 };
-

@@ -1,5 +1,6 @@
 import prisma from '../../config/db.js';
 import { ApiError } from '../../utils/ApiError.js';
+import * as activityLogService from '../activity-logs/activity-log.service.js';
 import { getPagination } from '../../utils/pagination.js';
 import { getSearchQuery } from '../../utils/search.js';
 import { getSortQuery } from '../../utils/sort.js';
@@ -48,6 +49,14 @@ export const createDepartment = async (data, creatorId) => {
         });
       }
     }
+
+    await activityLogService.log({
+      userId: creatorId,
+      action: 'CREATE',
+      module: 'DEPARTMENT',
+      referenceId: dept.id,
+      newData: dept,
+    });
 
     logger.info(`Department created: ${dept.name}`, { id: dept.id });
     return dept;
@@ -156,6 +165,14 @@ export const updateDepartment = async (id, data, modifierId) => {
       }
     }
 
+    await activityLogService.log({
+      userId: modifierId,
+      action: 'UPDATE',
+      module: 'DEPARTMENT',
+      referenceId: id,
+      oldData: dept,
+      newData: updated,
+    });
 
     logger.info(`Department updated: ${updated.name}`, { id });
     return updated;
@@ -172,6 +189,7 @@ export const deleteDepartment = async (id, destroyerId) => {
 
   const [activeUsersCount, activeAssetsCount] = await Promise.all([
     prisma.user.count({ where: { departmentId: id, deletedAt: null } }),
+    prisma.asset.count({ where: { departmentId: id, deletedAt: null } }),
   ]);
 
   if (activeUsersCount > 0) {
@@ -187,6 +205,13 @@ export const deleteDepartment = async (id, destroyerId) => {
     data: { deletedAt: new Date() },
   });
 
+  await activityLogService.log({
+    userId: destroyerId,
+    action: 'DELETE',
+    module: 'DEPARTMENT',
+    referenceId: id,
+    oldData: dept,
+  });
 
   logger.info(`Department soft deleted: ${dept.name}`, { id });
   return deleted;
