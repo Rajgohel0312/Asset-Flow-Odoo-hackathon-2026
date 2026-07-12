@@ -13,72 +13,202 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum UserStatus{
+enum UserStatus {
   ACTIVE
   INACTIVE
   SUSPENDED
 }
+
 enum DepartmentStatus {
   ACTIVE
   INACTIVE
 }
 
+enum CategoryStatus {
+  ACTIVE
+  INACTIVE
+}
 
-model Role{
-  id String @id @default(uuid()) @db.Uuid
-  name String @unique
+enum AssetCondition {
+  NEW
+  GOOD
+  FAIR
+  POOR
+  DAMAGED
+}
+
+enum AssetStatus {
+  AVAILABLE
+  ALLOCATED
+  RESERVED
+  UNDER_MAINTENANCE
+  LOST
+  RETIRED
+  DISPOSED
+}
+
+enum AllocationStatus {
+  ACTIVE
+  RETURNED
+  OVERDUE
+}
+
+enum TransferStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum BookingStatus {
+  UPCOMING
+  ONGOING
+  COMPLETED
+  CANCELLED
+}
+
+enum MaintenancePriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum MaintenanceStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  ASSIGNED
+  IN_PROGRESS
+  RESOLVED
+}
+
+enum AuditStatus {
+  OPEN
+  IN_PROGRESS
+  CLOSED
+}
+
+enum VerificationStatus {
+  VERIFIED
+  MISSING
+  DAMAGED
+}
+
+model Role {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @unique
   description String?
-  createdAt DateTime @default(now())
+  createdAt   DateTime @default(now())
 
   users User[]
 
   @@map("roles")
 }
 
-model User{
-  id           String  @id @default(uuid()) @db.Uuid
-  roleId       String  @db.Uuid
-  departmentId String? @db.Uuid
-  firstName String
-  lastName String
-  email String @unique
-  password String
-  status UserStatus @default(ACTIVE)
+model User {
+  id           String     @id @default(uuid()) @db.Uuid
+  roleId       String     @db.Uuid
+  departmentId String?    @db.Uuid
+  firstName    String
+  lastName     String
+  email        String     @unique
+  password     String
+  status       UserStatus @default(ACTIVE)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   deletedAt DateTime?
 
-  role Role @relation(fields: [roleId],references:[id])
-  department Department? @relation("UserDepartment", fields: [departmentId], references: [id], onDelete: SetNull)
-  headedDepartments     Department[]         @relation("DepartmentHead")
+  role              Role         @relation(fields: [roleId], references: [id])
+  department        Department?  @relation("UserDepartment", fields: [departmentId], references: [id], onDelete: SetNull)
+  headedDepartments Department[] @relation("DepartmentHead")
 
+  uploadedDocuments AssetDocument[] @relation("DocumentUploader")
 
   @@index([email])
   @@index([roleId])
-
   @@map("users")
 }
 
 model Department {
-  id                 String            @id @default(uuid()) @db.Uuid
+  id                 String           @id @default(uuid()) @db.Uuid
   name               String
   description        String?
-  parentDepartmentId String?           @db.Uuid
-  departmentHeadId   String?           @db.Uuid
-  status             DepartmentStatus  @default(ACTIVE)
+  parentDepartmentId String?          @db.Uuid
+  departmentHeadId   String?          @db.Uuid
+  status             DepartmentStatus @default(ACTIVE)
 
-  createdAt          DateTime          @default(now())
-  updatedAt          DateTime          @updatedAt
-  deletedAt          DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
 
-  parentDepartment Department? @relation("DepartmentHierarchy", fields: [parentDepartmentId], references: [id], onDelete: Restrict)
+  parentDepartment Department?  @relation("DepartmentHierarchy", fields: [parentDepartmentId], references: [id], onDelete: Restrict)
   childDepartments Department[] @relation("DepartmentHierarchy")
 
   departmentHead User? @relation("DepartmentHead", fields: [departmentHeadId], references: [id], onDelete: SetNull)
 
   users User[] @relation("UserDepartment")
 
+  assets Asset[] @relation("AssetDepartment")
+
   @@map("departments")
+}
+
+model AssetCategory {
+  id                     String         @id @default(uuid()) @db.Uuid
+  name                   String
+  description            String?
+  defaultMaintenanceDays Int            @default(0)
+  status                 CategoryStatus @default(ACTIVE)
+  createdAt              DateTime       @default(now())
+  updatedAt              DateTime       @updatedAt
+  deletedAt              DateTime?
+
+  assets Asset[]
+
+  @@map("asset_categories")
+}
+
+model Asset {
+  id             String         @id @default(uuid()) @db.Uuid
+  assetTag       String         @unique
+  serialNumber   String?
+  categoryId     String         @db.Uuid
+  departmentId   String?        @db.Uuid
+  assetName      String
+  purchaseDate   DateTime?
+  purchaseCost   Decimal        @default(0)
+  warrantyExpiry DateTime?
+  location       String?
+  condition      AssetCondition @default(GOOD)
+  status         AssetStatus    @default(AVAILABLE)
+  qrCode         String?
+  image          String?
+  isBookable     Boolean        @default(false)
+  notes          String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  deletedAt      DateTime?
+
+  category   AssetCategory @relation(fields: [categoryId], references: [id])
+  department Department?   @relation("AssetDepartment", fields: [departmentId], references: [id], onDelete: SetNull)
+
+  documents AssetDocument[]
+
+  @@map("assets")
+}
+
+model AssetDocument {
+  id         String   @id @default(uuid()) @db.Uuid
+  assetId    String   @db.Uuid
+  fileName   String
+  filePath   String
+  uploadedBy String   @db.Uuid
+  createdAt  DateTime @default(now())
+
+  asset    Asset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  uploader User  @relation("DocumentUploader", fields: [uploadedBy], references: [id])
+
+  @@map("asset_documents")
 }
