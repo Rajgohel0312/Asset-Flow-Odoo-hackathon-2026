@@ -18,10 +18,14 @@ enum UserStatus{
   INACTIVE
   SUSPENDED
 }
+enum DepartmentStatus {
+  ACTIVE
+  INACTIVE
+}
 
 
 model Role{
-  id String @id @default(uuid())
+  id String @id @default(uuid()) @db.Uuid
   name String @unique
   description String?
   createdAt DateTime @default(now())
@@ -32,8 +36,9 @@ model Role{
 }
 
 model User{
-  id String @id @default(uuid())
-  roleId String
+  id           String  @id @default(uuid()) @db.Uuid
+  roleId       String  @db.Uuid
+  departmentId String? @db.Uuid
   firstName String
   lastName String
   email String @unique
@@ -46,9 +51,34 @@ model User{
   deletedAt DateTime?
 
   role Role @relation(fields: [roleId],references:[id])
+  department Department? @relation("UserDepartment", fields: [departmentId], references: [id], onDelete: SetNull)
+  headedDepartments     Department[]         @relation("DepartmentHead")
+
 
   @@index([email])
   @@index([roleId])
 
   @@map("users")
+}
+
+model Department {
+  id                 String            @id @default(uuid()) @db.Uuid
+  name               String
+  description        String?
+  parentDepartmentId String?           @db.Uuid
+  departmentHeadId   String?           @db.Uuid
+  status             DepartmentStatus  @default(ACTIVE)
+
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  deletedAt          DateTime?
+
+  parentDepartment Department? @relation("DepartmentHierarchy", fields: [parentDepartmentId], references: [id], onDelete: Restrict)
+  childDepartments Department[] @relation("DepartmentHierarchy")
+
+  departmentHead User? @relation("DepartmentHead", fields: [departmentHeadId], references: [id], onDelete: SetNull)
+
+  users User[] @relation("UserDepartment")
+
+  @@map("departments")
 }

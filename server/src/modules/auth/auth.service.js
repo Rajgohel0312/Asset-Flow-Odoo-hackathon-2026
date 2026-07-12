@@ -5,7 +5,7 @@ import { ApiError } from "../../utils/ApiError.js";
 import * as authRepository from "./auth.repository.js";
 
 export const registerUser = async (data) => {
-  const { firstName, lastName, email, password } = data;
+  const { firstName, lastName, email, password, departmentId } = data;
   const existing = await authRepository.findByEmail(email);
 
   if (existing) {
@@ -28,9 +28,10 @@ export const registerUser = async (data) => {
       email,
       password: hashedPassword,
       roleId: employeeRole.id,
+      departmentId,
       status: "ACTIVE",
     },
-    include: { role: true },
+    include: { role: true,department: true },
   });
 
   return user;
@@ -41,7 +42,7 @@ export const loginUser = async (data) => {
 
   const user = await prisma.user.findFirst({
     where: { email, deletedAt: null },
-    include: { role: true },
+    include: { role: true, department: true  },
   });
 
   if (!user) {
@@ -73,7 +74,7 @@ export const loginUser = async (data) => {
 export const getUserProfile = async (id) => {
   const user = await prisma.user.findFirst({
     where: { id, deletedAt: null },
-    include: { role: true },
+    include: { role: true , department: true},
   });
   if (!user) {
     throw new ApiError(404, 'User profile not found');

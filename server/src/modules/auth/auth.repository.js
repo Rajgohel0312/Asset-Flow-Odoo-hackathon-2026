@@ -8,6 +8,7 @@ export const findByEmail = async (email) => {
     },
     include: {
       role: true,
+      department: true,
     },
   });
 };
@@ -20,6 +21,7 @@ export const findById = async (id) => {
     },
     include: {
       role: true,
+      department: true,
     },
   });
 };
@@ -29,6 +31,7 @@ export const create = async (userData) => {
     data: userData,
     include: {
       role: true,
+      department: true,
     },
   });
 };
