@@ -1,122 +1,184 @@
-import * as assetService from './asset.service.js';
-import { asyncHandler } from '../../utils/asyncHandler.js';
-import { ApiResponse } from '../../utils/ApiResponse.js';
-import { toAssetDTO, toAssetListDTO } from '../../mappers/asset.mapper.js';
+import * as assetRepo from './asset.repository.js';
+import prisma from '../../config/db.js';
+import { ConflictError, NotFoundError, BadRequestError } from '../../utils/errors.js';
+import { logActivity } from '../activity-logs/activity-log.service.js';
 
-export const createCategory = asyncHandler(async (req, res, next) => {
-  const category = await assetService.createCategory(req.body, req.user.id);
-  return res.status(201).json(
-    new ApiResponse(201, category, 'Asset category created successfully')
-  );
-});
+export const createCategory = async (data, userId) => {
+  const existing = await assetRepo.findCategoryByName(data.name);
+  if (existing) {
+    throw new ConflictError('Category name already exists');
+  }
+  const category = await assetRepo.createCategory(data);
+  await logActivity(userId, 'CREATE_CATEGORY', `Created asset category ${category.name}`, { categoryId: category.id });
+  return category;
+};
 
-export const getCategoryById = asyncHandler(async (req, res, next) => {
-  const category = await assetService.getCategoryById(req.params.id);
-  return res.status(200).json(
-    new ApiResponse(200, category, 'Asset category retrieved successfully')
-  );
-});
+export const getCategoryById = async (id) => {
+  const category = await assetRepo.findCategoryById(id);
+  if (!category) {
+    throw new NotFoundError('Category not found');
+  }
+  return category;
+};
 
-export const getAllCategories = asyncHandler(async (req, res, next) => {
-  const result = await assetService.getAllCategories(req.query);
-  const page = parseInt(req.query.page) || 1;
-  const limit = parseInt(req.query.limit) || 10;
+export const getAllCategories = async (query) => {
+  return await assetRepo.findAllCategories(query);
+};
+
+export const updateCategory = async (id, data, userId) => {
+  const category = await getCategoryById(id);
+  if (data.name && data.name !== category.name) {
+    const existing = await assetRepo.findCategoryByName(data.name);
+    if (existing) {
+      throw new ConflictError('Category name already exists');
+    }
+  }
+  const updated = await assetRepo.updateCategory(id, data);
+  await logActivity(userId, 'UPDATE_CATEGORY', `Updated asset category ${updated.name}`, { categoryId: updated.id });
+  return updated;
+};
+
+export const deleteCategory = async (id, userId) => {
+  const category = await getCategoryById(id);
+  const deleted = await assetRepo.softDeleteCategory(id);
+  await logActivity(userId, 'DELETE_CATEGORY', `Soft-deleted asset category ${category.name}`, { categoryId: category.id });
+  return deleted;
+};
+
+export const createAsset = async (data, userId) => {
+  if (!data.assetTag) {
+    const count = await prisma.asset.count();
+    data.assetTag = `AF-${String(count + 1).padStart(6, '0')}`;
+  }
   
-  const meta = {
-    page,
-    limit,
-    total: result.total,
-    pages: Math.ceil(result.total / limit),
-  };
+  const existing = await assetRepo.findAssetByTag(data.assetTag);
+  if (existing) {
+    throw new ConflictError('Asset tag is already registered');
+  }
 
-  return res.status(200).json(
-    new ApiResponse(200, result.data, 'Asset categories retrieved successfully', meta)
-  );
-});
+  const asset = await assetRepo.createAsset(data);
+  await logActivity(userId, 'CREATE_ASSET', `Registered asset ${asset.assetName} [${asset.assetTag}]`, { assetId: asset.id });
+  return asset;
+};
 
-export const updateCategory = asyncHandler(async (req, res, next) => {
-  const category = await assetService.updateCategory(req.params.id, req.body, req.user.id);
-  return res.status(200).json(
-    new ApiResponse(200, category, 'Asset category updated successfully')
-  );
-});
+export const getAssetById = async (id) => {
+  const asset = await assetRepo.findAssetById(id);
+  if (!asset) {
+    throw new NotFoundError('Asset not found');
+  }
+  return asset;
+};
 
-export const deleteCategory = asyncHandler(async (req, res, next) => {
-  await assetService.deleteCategory(req.params.id, req.user.id);
-  return res.status(200).json(
-    new ApiResponse(200, null, 'Asset category deleted successfully')
-  );
-});
+export const getAllAssets = async (query) => {
+  return await assetRepo.findAllAssets(query);
+};
 
-export const create = asyncHandler(async (req, res, next) => {
-  const asset = await assetService.createAsset(req.body, req.user.id);
-  return res.status(201).json(
-    new ApiResponse(201, toAssetDTO(asset), 'Asset registered successfully')
-  );
-});
+export const updateAsset = async (id, data, userId) => {
+  const asset = await getAssetById(id);
+  if (data.assetTag && data.assetTag !== asset.assetTag) {
+    const existing = await assetRepo.findAssetByTag(data.assetTag);
+    if (existing) {
+      throw new ConflictError('Asset tag is already registered');
+    }
+  }
+  const updated = await assetRepo.updateAsset(id, data);
+  await logActivity(userId, 'UPDATE_ASSET', `Updated asset details for ${updated.assetName} [${updated.assetTag}]`, { assetId: updated.id });
+  return updated;
+};
 
-export const getById = asyncHandler(async (req, res, next) => {
-  const asset = await assetService.getAssetById(req.params.id);
-  return res.status(200).json(
-    new ApiResponse(200, toAssetDTO(asset), 'Asset details retrieved successfully')
-  );
-});
+export const deleteAsset = async (id, userId) => {
+  const asset = await getAssetById(id);
+  const deleted = await assetRepo.softDeleteAsset(id);
+  await logActivity(userId, 'DELETE_ASSET', `Soft-deleted asset ${asset.assetName} [${asset.assetTag}]`, { assetId: asset.id });
+  return deleted;
+};
 
-export const getAll = asyncHandler(async (req, res, next) => {
-  const result = await assetService.getAllAssets(req.query);
-  const page = parseInt(req.query.page) || 1;
-  const limit = parseInt(req.query.limit) || 10;
+export const getAssetHistory = async (id) => {
+  await getAssetById(id);
+  const history = await assetRepo.findAssetHistory(id);
+  const timeline = [];
   
-  const meta = {
-    page,
-    limit,
-    total: result.total,
-    pages: Math.ceil(result.total / limit),
-  };
+  history.allocations.forEach(alloc => {
+    timeline.push({
+      type: 'allocation',
+      date: alloc.allocatedAt,
+      description: `Allocated to ${alloc.employee.firstName} ${alloc.employee.lastName}. Status: ${alloc.status}`
+    });
+    if (alloc.returnedAt) {
+      timeline.push({
+        type: 'return',
+        date: alloc.returnedAt,
+        description: `Returned by ${alloc.employee.firstName} ${alloc.employee.lastName}. Condition note: ${alloc.returnConditionNote || 'None'}`
+      });
+    }
+  });
 
-  return res.status(200).json(
-    new ApiResponse(200, toAssetListDTO(result.data), 'Assets list retrieved successfully', meta)
-  );
-});
+  history.bookings.forEach(book => {
+    timeline.push({
+      type: 'booking',
+      date: book.startTime,
+      description: `Reserved by ${book.user.firstName} ${book.user.lastName} for ${book.purpose}. Status: ${book.status}`
+    });
+  });
 
-export const update = asyncHandler(async (req, res, next) => {
-  const asset = await assetService.updateAsset(req.params.id, req.body, req.user.id);
-  return res.status(200).json(
-    new ApiResponse(200, toAssetDTO(asset), 'Asset updated successfully')
-  );
-});
+  history.maintenances.forEach(maint => {
+    timeline.push({
+      type: 'maintenance',
+      date: maint.createdAt,
+      description: `Maintenance ticket reported by ${maint.requester.firstName} ${maint.requester.lastName}. Issue: ${maint.issueDescription}`
+    });
+  });
 
-export const remove = asyncHandler(async (req, res, next) => {
-  await assetService.deleteAsset(req.params.id, req.user.id);
-  return res.status(200).json(
-    new ApiResponse(200, null, 'Asset deleted successfully')
-  );
-});
+  history.transfers.forEach(xfer => {
+    timeline.push({
+      type: 'transfer',
+      date: xfer.createdAt,
+      description: `Transfer request from ${xfer.fromEmployee?.firstName || 'N/A'} to ${xfer.toEmployee?.firstName || 'N/A'}. Status: ${xfer.status}`
+    });
+  });
 
-export const getHistory = asyncHandler(async (req, res, next) => {
-  const history = await assetService.getAssetHistory(req.params.id);
-  return res.status(200).json(
-    new ApiResponse(200, history, 'Asset lifecycle timeline retrieved successfully')
-  );
-});
+  history.auditItems.forEach(audit => {
+    timeline.push({
+      type: 'audit',
+      date: audit.createdAt,
+      description: `Verified in audit cycle [${audit.cycle.title}]. Verification: ${audit.verificationStatus}`
+    });
+  });
 
-export const uploadDocument = asyncHandler(async (req, res, next) => {
-  const doc = await assetService.addAssetDocument(req.params.id, req.file, req.user.id);
-  return res.status(201).json(
-    new ApiResponse(201, doc, 'Document uploaded and attached successfully')
-  );
-});
+  return timeline.sort((a, b) => new Date(b.date) - new Date(a.date));
+};
 
-export const retire = asyncHandler(async (req, res, next) => {
-  const asset = await assetService.retireAsset(req.params.id, req.body, req.user.id);
-  return res.status(200).json(
-    new ApiResponse(200, toAssetDTO(asset), 'Asset retired successfully')
-  );
-});
+export const addAssetDocument = async (id, file, userId) => {
+  if (!file) throw new BadRequestError('Document file is missing');
+  await getAssetById(id);
+  const doc = await assetRepo.createDocument({
+    assetId: id,
+    fileName: file.originalname,
+    filePath: file.path,
+    fileType: file.mimetype,
+    fileSize: file.size,
+    uploadedById: userId
+  });
+  await logActivity(userId, 'UPLOAD_DOCUMENT', `Uploaded document ${doc.fileName} for asset ID ${id}`, { assetId: id });
+  return doc;
+};
 
-export const dispose = asyncHandler(async (req, res, next) => {
-  const asset = await assetService.disposeAsset(req.params.id, req.body, req.user.id);
-  return res.status(200).json(
-    new ApiResponse(200, toAssetDTO(asset), 'Asset disposed successfully')
-  );
-});
+export const retireAsset = async (id, data, userId) => {
+  await getAssetById(id);
+  const updated = await assetRepo.updateAsset(id, {
+    status: 'RETIRED',
+    notes: `Retired: ${data.notes || 'No notes provided'}`
+  });
+  await logActivity(userId, 'RETIRE_ASSET', `Retired asset ${updated.assetName} [${updated.assetTag}]`, { assetId: updated.id });
+  return updated;
+};
+
+export const disposeAsset = async (id, data, userId) => {
+  await getAssetById(id);
+  const updated = await assetRepo.updateAsset(id, {
+    status: 'DISPOSED',
+    notes: `Disposed: Reason: ${data.reason}. Cost recovery: $${data.recoveryValue || 0}. Notes: ${data.notes || 'None'}`
+  });
+  await logActivity(userId, 'DISPOSE_ASSET', `Disposed asset ${updated.assetName} [${updated.assetTag}]`, { assetId: updated.id });
+  return updated;
+};

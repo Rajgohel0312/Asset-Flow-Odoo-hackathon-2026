@@ -18,8 +18,10 @@ export const findCategoryByName = async (name) => {
 };
 
 export const findAllCategories = async (params = {}) => {
-  const { page = 1, limit = 10, search } = params;
-  const skip = (page - 1) * limit;
+  const pageVal = parseInt(params.page) || 1;
+  const limitVal = parseInt(params.limit) || 10;
+  const skip = (pageVal - 1) * limitVal;
+  const search = params.search;
 
   const where = {
     deletedAt: null,
@@ -35,7 +37,7 @@ export const findAllCategories = async (params = {}) => {
     prisma.assetCategory.findMany({
       where,
       skip,
-      take: limit,
+      take: limitVal,
       orderBy: { createdAt: 'desc' },
       include: {
         _count: { select: { assets: true } },
@@ -92,9 +94,10 @@ export const findAssetByTag = async (assetTag) => {
 };
 
 export const findAllAssets = async (params = {}) => {
+  const pageVal = parseInt(params.page) || 1;
+  const limitVal = parseInt(params.limit) || 10;
+  const skip = (pageVal - 1) * limitVal;
   const {
-    page = 1,
-    limit = 10,
     search,
     categoryId,
     departmentId,
@@ -102,7 +105,6 @@ export const findAllAssets = async (params = {}) => {
     condition,
     isBookable,
   } = params;
-  const skip = (page - 1) * limit;
 
   const where = {
     deletedAt: null,
@@ -125,7 +127,7 @@ export const findAllAssets = async (params = {}) => {
     prisma.asset.findMany({
       where,
       skip,
-      take: limit,
+      take: limitVal,
       include: {
         category: true,
         department: true,

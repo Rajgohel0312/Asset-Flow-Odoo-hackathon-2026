@@ -41,7 +41,7 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
-// app.use('/api/v1', mainRouter);
+app.use('/api/v1', mainRouter);
 
 app.use('*', (req, res, next) => {
   next(new NotFoundError(`Cannot find ${req.originalUrl} on this server`));

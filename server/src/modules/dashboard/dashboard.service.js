@@ -142,5 +142,6 @@ export const getDashboardData = async (requester) => {
     kpis,
     charts,
     recentActivities,
+    recentLogs: recentActivities,
   };
 };

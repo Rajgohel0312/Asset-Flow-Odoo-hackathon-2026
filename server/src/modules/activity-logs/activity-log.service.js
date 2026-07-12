@@ -83,3 +83,23 @@ export const findAll = async (params, requester) => {
 
   return { data, total };
 };
+
+export const logActivity = async (userId, action, description, metadata = null) => {
+  const parts = action.split('_');
+  const actionPart = parts[0];
+  const modulePart = parts.slice(1).join('_') || 'ASSET';
+
+  let referenceId = null;
+  if (metadata) {
+    referenceId = metadata.categoryId || metadata.assetId || metadata.id || null;
+  }
+
+  return await log({
+    userId,
+    action: actionPart,
+    module: modulePart,
+    referenceId,
+    newData: { description, ...(metadata || {}) },
+  });
+};
+

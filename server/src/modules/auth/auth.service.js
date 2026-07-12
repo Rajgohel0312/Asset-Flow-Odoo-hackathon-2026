@@ -69,7 +69,7 @@ export const loginUser = async (data) => {
 
   const token = jwt.sign(
     { id: user.id, email: user.email },
-    process.env.JWT_SECRET || 'fallback-secret-key-123',
+    process.env.JWT_SECRET ,
     { expiresIn: process.env.JWT_EXPIRY || '24h' }
   );
 

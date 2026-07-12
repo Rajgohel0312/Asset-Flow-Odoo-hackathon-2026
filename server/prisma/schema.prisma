@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -11,6 +5,313 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+model Role {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+  users       User[]
+
+  @@map("roles")
+}
+
+model User {
+  id                String          @id @default(uuid()) @db.Uuid
+  roleId            String          @db.Uuid
+  departmentId      String?         @db.Uuid
+  firstName         String
+  lastName          String
+  email             String          @unique
+  password          String
+  status            UserStatus      @default(ACTIVE)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  deletedAt         DateTime?
+  uploadedDocuments AssetDocument[] @relation("DocumentUploader")
+  headedDepartments Department[]    @relation("DepartmentHead")
+  department        Department?     @relation("UserDepartment", fields: [departmentId], references: [id])
+  role              Role            @relation(fields: [roleId], references: [id])
+
+  // Added relation back-references
+  allocations        AssetAllocation[]   @relation("EmployeeAllocations")
+  approvedAllocations AssetAllocation[]  @relation("ApproverAllocations")
+  transfersRequested TransferRequest[]   @relation("TransferRequester")
+  transfersFrom      TransferRequest[]   @relation("TransferFrom")
+  transfersTo        TransferRequest[]   @relation("TransferTo")
+  transfersApproved  TransferRequest[]   @relation("TransferApprover")
+  bookings           ResourceBooking[]   @relation("UserBookings")
+  maintenanceRequests MaintenanceRequest[] @relation("MaintenanceRequester")
+  maintenanceApproved MaintenanceRequest[] @relation("MaintenanceApprover")
+  maintenanceAssigned MaintenanceRequest[] @relation("MaintenanceTechnician")
+  maintenanceUpdates  MaintenanceUpdate[]  @relation("MaintenanceUpdater")
+  auditsCreated       AuditCycle[]        @relation("AuditCreator")
+  auditItemsVerified  AuditItem[]         @relation("AuditAuditor")
+  notifications      Notification[]      @relation("UserNotification")
+  activityLogs       ActivityLog[]       @relation("UserActivityLog")
+
+  @@index([email])
+  @@index([roleId])
+  @@map("users")
+}
+
+model Department {
+  id                 String           @id @default(uuid()) @db.Uuid
+  name               String
+  description        String?
+  parentDepartmentId String?          @db.Uuid
+  departmentHeadId   String?          @db.Uuid
+  status             DepartmentStatus @default(ACTIVE)
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  deletedAt          DateTime?
+  assets             Asset[]          @relation("AssetDepartment")
+  departmentHead     User?            @relation("DepartmentHead", fields: [departmentHeadId], references: [id])
+  parentDepartment   Department?      @relation("DepartmentHierarchy", fields: [parentDepartmentId], references: [id], onDelete: Restrict)
+  childDepartments   Department[]     @relation("DepartmentHierarchy")
+  users              User[]           @relation("UserDepartment")
+
+  // Added relation back-references
+  allocations        AssetAllocation[] @relation("DepartmentAllocations")
+  audits             AuditCycle[]      @relation("DepartmentAudits")
+
+  @@map("departments")
+}
+
+model AssetCategory {
+  id                     String         @id @default(uuid()) @db.Uuid
+  name                   String
+  description            String?
+  defaultMaintenanceDays Int            @default(0)
+  status                 CategoryStatus @default(ACTIVE)
+  createdAt              DateTime       @default(now())
+  updatedAt              DateTime       @updatedAt
+  deletedAt              DateTime?
+  assets                 Asset[]
+
+  @@map("asset_categories")
+}
+
+model Asset {
+  id             String          @id @default(uuid()) @db.Uuid
+  assetTag       String          @unique
+  serialNumber   String?
+  categoryId     String          @db.Uuid
+  departmentId   String?         @db.Uuid
+  assetName      String
+  purchaseDate   DateTime?
+  purchaseCost   Decimal         @default(0)
+  warrantyExpiry DateTime?
+  location       String?
+  condition      AssetCondition  @default(GOOD)
+  status         AssetStatus     @default(AVAILABLE)
+  qrCode         String?
+  image          String?
+  isBookable     Boolean         @default(false)
+  notes          String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  deletedAt      DateTime?
+  documents      AssetDocument[]
+  category       AssetCategory   @relation(fields: [categoryId], references: [id])
+  department     Department?     @relation("AssetDepartment", fields: [departmentId], references: [id])
+
+  // Added relation back-references
+  allocations  AssetAllocation[]    @relation("AssetAllocations")
+  transfers    TransferRequest[]    @relation("AssetTransfers")
+  bookings     ResourceBooking[]    @relation("AssetBookings")
+  maintenances MaintenanceRequest[] @relation("AssetMaintenances")
+  auditItems   AuditItem[]          @relation("AssetAudits")
+
+  @@map("assets")
+}
+
+model AssetDocument {
+  id         String   @id @default(uuid()) @db.Uuid
+  assetId    String   @db.Uuid
+  fileName   String
+  filePath   String
+  uploadedBy String   @db.Uuid
+  createdAt  DateTime @default(now())
+  asset      Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  uploader   User     @relation("DocumentUploader", fields: [uploadedBy], references: [id])
+
+  @@map("asset_documents")
+}
+
+// Added database models
+
+model AssetAllocation {
+  id                 String           @id @default(uuid()) @db.Uuid
+  assetId            String           @db.Uuid
+  employeeId         String           @db.Uuid
+  departmentId       String?          @db.Uuid
+  allocatedBy        String           @db.Uuid
+  expectedReturnDate DateTime?
+  returnedAt         DateTime?
+  returnNotes        String?
+  status             AllocationStatus @default(ACTIVE)
+  allocatedAt        DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  asset      Asset       @relation("AssetAllocations", fields: [assetId], references: [id], onDelete: Cascade)
+  employee   User        @relation("EmployeeAllocations", fields: [employeeId], references: [id], onDelete: Cascade)
+  department Department? @relation("DepartmentAllocations", fields: [departmentId], references: [id], onDelete: SetNull)
+  approver   User        @relation("ApproverAllocations", fields: [allocatedBy], references: [id], onDelete: Cascade)
+
+  @@map("asset_allocations")
+}
+
+model TransferRequest {
+  id             String         @id @default(uuid()) @db.Uuid
+  assetId        String         @db.Uuid
+  requestedBy    String         @db.Uuid
+  fromEmployeeId String?        @db.Uuid
+  toEmployeeId   String         @db.Uuid
+  reason         String?
+  status         TransferStatus @default(PENDING)
+  approvedBy     String?        @db.Uuid
+  approvedAt     DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  asset        Asset  @relation("AssetTransfers", fields: [assetId], references: [id], onDelete: Cascade)
+  requester    User   @relation("TransferRequester", fields: [requestedBy], references: [id], onDelete: Cascade)
+  fromEmployee User?  @relation("TransferFrom", fields: [fromEmployeeId], references: [id], onDelete: SetNull)
+  toEmployee   User   @relation("TransferTo", fields: [toEmployeeId], references: [id], onDelete: Cascade)
+  approver     User?  @relation("TransferApprover", fields: [approvedBy], references: [id], onDelete: SetNull)
+
+  @@map("transfer_requests")
+}
+
+model ResourceBooking {
+  id            String        @id @default(uuid()) @db.Uuid
+  bookingNumber String        @unique
+  assetId       String        @db.Uuid
+  bookedBy      String        @db.Uuid
+  startTime     DateTime
+  endTime       DateTime
+  purpose       String?
+  status        BookingStatus @default(UPCOMING)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  deletedAt     DateTime?
+
+  asset Asset @relation("AssetBookings", fields: [assetId], references: [id], onDelete: Cascade)
+  user  User  @relation("UserBookings", fields: [bookedBy], references: [id], onDelete: Cascade)
+
+  @@map("resource_bookings")
+}
+
+model MaintenanceRequest {
+  id               String              @id @default(uuid()) @db.Uuid
+  assetId          String              @db.Uuid
+  requestedBy      String              @db.Uuid
+  priority         MaintenancePriority @default(MEDIUM)
+  issueDescription String
+  photo            String?
+  status           MaintenanceStatus   @default(PENDING)
+  approvedBy       String?             @db.Uuid
+  technicianId     String?             @db.Uuid
+  resolvedAt       DateTime?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  deletedAt        DateTime?
+
+  asset      Asset               @relation("AssetMaintenances", fields: [assetId], references: [id], onDelete: Cascade)
+  requester  User                @relation("MaintenanceRequester", fields: [requestedBy], references: [id], onDelete: Cascade)
+  approver   User?               @relation("MaintenanceApprover", fields: [approvedBy], references: [id], onDelete: SetNull)
+  technician User?               @relation("MaintenanceTechnician", fields: [technicianId], references: [id], onDelete: SetNull)
+  updates    MaintenanceUpdate[] @relation("RequestUpdates")
+
+  @@map("maintenance_requests")
+}
+
+model MaintenanceUpdate {
+  id                   String            @id @default(uuid()) @db.Uuid
+  maintenanceRequestId String            @db.Uuid
+  comment              String
+  status               MaintenanceStatus
+  updatedBy            String            @db.Uuid
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+
+  request MaintenanceRequest @relation("RequestUpdates", fields: [maintenanceRequestId], references: [id], onDelete: Cascade)
+  updater User               @relation("MaintenanceUpdater", fields: [updatedBy], references: [id], onDelete: Cascade)
+
+  @@map("maintenance_updates")
+}
+
+model AuditCycle {
+  id           String      @id @default(uuid()) @db.Uuid
+  auditNumber  String      @unique
+  title        String
+  departmentId String?     @db.Uuid
+  location     String?
+  startDate    DateTime
+  endDate      DateTime
+  status       AuditStatus @default(OPEN)
+  createdBy    String      @db.Uuid
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  department Department? @relation("DepartmentAudits", fields: [departmentId], references: [id], onDelete: SetNull)
+  creator    User        @relation("AuditCreator", fields: [createdBy], references: [id], onDelete: Cascade)
+  items      AuditItem[] @relation("CycleItems")
+
+  @@map("audit_cycles")
+}
+
+model AuditItem {
+  id                 String             @id @default(uuid()) @db.Uuid
+  auditCycleId       String             @db.Uuid
+  assetId            String             @db.Uuid
+  auditorId          String?            @db.Uuid
+  verificationStatus VerificationStatus?
+  remarks            String?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  cycle   AuditCycle @relation("CycleItems", fields: [auditCycleId], references: [id], onDelete: Cascade)
+  asset   Asset      @relation("AssetAudits", fields: [assetId], references: [id], onDelete: Cascade)
+  auditor User?      @relation("AuditAuditor", fields: [auditorId], references: [id], onDelete: SetNull)
+
+  @@map("audit_items")
+}
+
+model Notification {
+  id            String    @id @default(uuid()) @db.Uuid
+  userId        String    @db.Uuid
+  title         String
+  message       String
+  type          String
+  referenceType String?
+  referenceId   String?
+  isRead        Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  user User @relation("UserNotification", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
+model ActivityLog {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String?  @db.Uuid
+  action      String
+  module      String
+  referenceId String?
+  oldData     Json?
+  newData     Json?
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+
+  user User? @relation("UserActivityLog", fields: [userId], references: [id], onDelete: SetNull)
+
+  @@map("activity_logs")
 }
 
 enum UserStatus {
@@ -94,121 +395,3 @@ enum VerificationStatus {
   DAMAGED
 }
 
-model Role {
-  id          String   @id @default(uuid()) @db.Uuid
-  name        String   @unique
-  description String?
-  createdAt   DateTime @default(now())
-
-  users User[]
-
-  @@map("roles")
-}
-
-model User {
-  id           String     @id @default(uuid()) @db.Uuid
-  roleId       String     @db.Uuid
-  departmentId String?    @db.Uuid
-  firstName    String
-  lastName     String
-  email        String     @unique
-  password     String
-  status       UserStatus @default(ACTIVE)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  deletedAt DateTime?
-
-  role              Role         @relation(fields: [roleId], references: [id])
-  department        Department?  @relation("UserDepartment", fields: [departmentId], references: [id], onDelete: SetNull)
-  headedDepartments Department[] @relation("DepartmentHead")
-
-  uploadedDocuments AssetDocument[] @relation("DocumentUploader")
-
-  @@index([email])
-  @@index([roleId])
-  @@map("users")
-}
-
-model Department {
-  id                 String           @id @default(uuid()) @db.Uuid
-  name               String
-  description        String?
-  parentDepartmentId String?          @db.Uuid
-  departmentHeadId   String?          @db.Uuid
-  status             DepartmentStatus @default(ACTIVE)
-
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime?
-
-  parentDepartment Department?  @relation("DepartmentHierarchy", fields: [parentDepartmentId], references: [id], onDelete: Restrict)
-  childDepartments Department[] @relation("DepartmentHierarchy")
-
-  departmentHead User? @relation("DepartmentHead", fields: [departmentHeadId], references: [id], onDelete: SetNull)
-
-  users User[] @relation("UserDepartment")
-
-  assets Asset[] @relation("AssetDepartment")
-
-  @@map("departments")
-}
-
-model AssetCategory {
-  id                     String         @id @default(uuid()) @db.Uuid
-  name                   String
-  description            String?
-  defaultMaintenanceDays Int            @default(0)
-  status                 CategoryStatus @default(ACTIVE)
-  createdAt              DateTime       @default(now())
-  updatedAt              DateTime       @updatedAt
-  deletedAt              DateTime?
-
-  assets Asset[]
-
-  @@map("asset_categories")
-}
-
-model Asset {
-  id             String         @id @default(uuid()) @db.Uuid
-  assetTag       String         @unique
-  serialNumber   String?
-  categoryId     String         @db.Uuid
-  departmentId   String?        @db.Uuid
-  assetName      String
-  purchaseDate   DateTime?
-  purchaseCost   Decimal        @default(0)
-  warrantyExpiry DateTime?
-  location       String?
-  condition      AssetCondition @default(GOOD)
-  status         AssetStatus    @default(AVAILABLE)
-  qrCode         String?
-  image          String?
-  isBookable     Boolean        @default(false)
-  notes          String?
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-  deletedAt      DateTime?
-
-  category   AssetCategory @relation(fields: [categoryId], references: [id])
-  department Department?   @relation("AssetDepartment", fields: [departmentId], references: [id], onDelete: SetNull)
-
-  documents AssetDocument[]
-
-  @@map("assets")
-}
-
-model AssetDocument {
-  id         String   @id @default(uuid()) @db.Uuid
-  assetId    String   @db.Uuid
-  fileName   String
-  filePath   String
-  uploadedBy String   @db.Uuid
-  createdAt  DateTime @default(now())
-
-  asset    Asset @relation(fields: [assetId], references: [id], onDelete: Cascade)
-  uploader User  @relation("DocumentUploader", fields: [uploadedBy], references: [id])
-
-  @@map("asset_documents")
-}

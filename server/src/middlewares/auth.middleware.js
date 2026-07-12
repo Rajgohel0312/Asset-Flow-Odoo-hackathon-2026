@@ -12,7 +12,7 @@ export const authenticate = async (req, res, next) => {
     const token = authHeader.split(' ')[1];
     let decoded;
     try {
-      decoded = jwt.verify(token, process.env.JWT_SECRET || 'assetflow-super-secret-jwt-key-2026-hackathon');
+      decoded = jwt.verify(token, process.env.JWT_SECRET);
     } catch (err) {
       throw new UnauthorizedError('Token is expired or invalid');
     }
